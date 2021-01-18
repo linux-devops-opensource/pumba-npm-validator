@@ -1,10 +1,15 @@
 steps:
 
 # Test the NodeJS project:
-- name: 'gcr.io/cloud-builders/npm'
+- name: 'gcr.io/feisty-return-300415/rhel7.9-node14.15.3'
   id: npm test the project
-  entrypoint: 'npm'
-  args: ['test']
+  entrypoint: /bin/sh
+  args:
+  - '-c'
+  - |
+    npm install
+    npm test
+    npx eslint *.js
 
 # Build the container image:
 - name: 'gcr.io/cloud-builders/docker'
@@ -12,7 +17,7 @@ steps:
   args:
   - 'build'
   - '-t'
-  - 'gcr.io/$PROJECT_ID/pumba-npm-validator:$SHORT_SHA'
+  - 'gcr.io/$PROJECT_ID/pumba-rpm-validator:latest'
   - '.'
 
 # Push the image to Container Registry (Currently Google)
@@ -22,4 +27,4 @@ steps:
   id: Push Image
   args:
   - 'push'
-  - 'gcr.io/$PROJECT_ID/pumba-npm-validator:$SHORT_SHA'
+  - 'gcr.io/$PROJECT_ID/pumba-rpm-validator:latest'
