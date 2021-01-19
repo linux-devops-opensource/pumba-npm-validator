@@ -89,6 +89,7 @@ function sendDataToPKGVal(pkgarray, ValURL, SessionID) {
         })
         .catch(function (err) {
             console.log(`Error sending package array to Package validator, run debug to view error`)
+            console.log(err)
             errDebug(err)
         })
     } else{
