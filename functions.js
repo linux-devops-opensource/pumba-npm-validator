@@ -5,7 +5,6 @@ const fs = require('fs')
 const { stderr } = require('process')
 const genfunc = require('./genericfunctions')
 var loopbacktoken = false
-let workingNPMS = []
 
 // functions block and export and use of funxtions. in this file is so that we can use nested stubs in our tests.
 // if we don't call the functions from this block they will be imported to the test module and use the nested local functions and not as a global function
@@ -34,9 +33,7 @@ async function validation(npmdir) {
         }
         superDebug(`end of while loop, loopbacktoken: ${loopbacktoken}`)
     } while (loopbacktoken)
-    superDebug(workingNPMS)
     console.log('NPM package validator has finished')
-    return workingNPMS
 }
 
 function validateNPMs(npmdir) {
@@ -74,17 +71,17 @@ function testinstallNPM(dir, npm) {
             console.log(`Package ${npm} installed successfully`)
             loopbacktoken = true
             genfunc.deletePackagefile(`${dir}/${npm}`)
-            workingNPMS.push({ name: npm, statusCode: 0, msg: "success" })
+            genfunc.genPkgArray(npm,0,"success")
             res(true)
         } catch (err) {
             const stderr = err.stderr
             if (stderr.includes("Requires") || stderr.includes("nothing provides")) {
                 console.log(`Package ${npm} has missing dependencies...`)
-                workingNPMS.push({ name: npm, statusCode: 1, msg: "missing_deps" })
+                genfunc.genPkgArray(npm,1,"missing_deps")
                 errDebug(err)
             } else {
                 console.log(`Unable to install package ${npm}, run debug mode to view error`)
-                workingNPMS.push({ name: npm, statusCode: 666, msg: 'unknown_err' } )
+                genfunc.genPkgArray(npm,666,"unknown_err")
                 errDebug(err)
             }
             rej(err)

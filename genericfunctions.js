@@ -2,11 +2,13 @@ const axios = require('axios')
 const fs = require('fs')
 const errDebug = require('debug')('debug:err')
 const superDebug = require('debug')('debug:stdout')
+let pkgArray = []
 
 const functions = {
     getPackages,
     downloadPackages,
     deletePackagefile,
+    genPkgArray,
     sendDataToPKGVal
 }
 module.exports = functions;
@@ -70,10 +72,27 @@ function deletePackagefile(pkg) {
   })
 }
 
-function sendDataToPKGVal(pkgarray, ValURL, SessionID) {
-    superDebug(JSON.stringify(pkgarray))
-    if (pkgarray.length != 0){
-        let data = JSON.stringify({"sid":SessionID,"statusCode":0,"pkgs":pkgarray});
+function genPkgArray(pkg, code, msg) {
+    return new Promise ((res, rej) => {
+        try {
+            if (pkgArray.some(e => e.name === pkg)) {
+                const index = pkgArray.findIndex(e => e.name === pkg)
+                if (index > -1) {
+                    pkgArray.splice(index, 1)
+                }
+            }
+            pkgArray.push({ name: pkg, statusCode: code, msg: msg})
+            res(true)
+        } catch {
+            rej("Unable to push to pkg array")
+        }
+    })
+}
+
+function sendDataToPKGVal(ValURL, pkgtype, SessionID) {
+    superDebug(JSON.stringify(pkgArray))
+    if (pkgArray.length != 0){
+        let data = JSON.stringify({"sid":SessionID,"type":pkgtype,"statusCode":0,"pkgs":pkgArray});
         let put = {
             url: ValURL,
             method: 'PUT',
@@ -89,7 +108,6 @@ function sendDataToPKGVal(pkgarray, ValURL, SessionID) {
         })
         .catch(function (err) {
             console.log(`Error sending package array to Package validator, run debug to view error`)
-            console.log(err)
             errDebug(err)
         })
     } else{
