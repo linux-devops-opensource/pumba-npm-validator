@@ -4,6 +4,7 @@ const { execSync } = require('child_process')
 const fs = require('fs')
 const { stderr } = require('process')
 const genfunc = require('./genericfunctions')
+const FileType = require('file-type')
 var loopbacktoken = false
 
 // functions block and export and use of funxtions. in this file is so that we can use nested stubs in our tests.
@@ -11,77 +12,81 @@ var loopbacktoken = false
 // that we can stub
 const functions = {
     filterPKG,
-    validateNPMs,
-    testinstallNPM,
+    validatePKGs,
+    testinstallPKG,
     validation
 }
 module.exports = functions;
 
 async function filterPKG(StorageManagerURL) {
-    const npms = await genfunc.getPackages(StorageManagerURL)
-    return npms.filter(s=>~s.indexOf(".tgz"));
+    const pkgs = await genfunc.getPackages(StorageManagerURL)
+    return pkgs.filter(s=>~s.indexOf(".tgz"));
 }
 
-async function validation(npmdir) {
+async function validation(pkgdir) {
     do {
         loopbacktoken = false
         superDebug(`start while loop, loopbacktoken: ${loopbacktoken}`)
         try {
-            await validateNPMs(npmdir)
+            await validatePKGs(pkgdir)
         } catch (err) {
             errDebug(err)
         }
         superDebug(`end of while loop, loopbacktoken: ${loopbacktoken}`)
     } while (loopbacktoken)
-    console.log('NPM package validator has finished')
+    console.log('Package validator has finished')
 }
 
-function validateNPMs(npmdir) {
+function validatePKGs(pkgdir) {
     return new Promise((res, rej) => {
-        if (fs.readdirSync(npmdir).length != 0) {
-            fs.readdirSync(npmdir).forEach(async (file) => {
-                let stdout = execSync(`file ${npmdir}/${file}`).toString()
-                if (stdout.includes("gzip")) {
+        var itemsProcessed = 0
+        if (fs.readdirSync(pkgdir).length != 0) {
+            fs.readdirSync(pkgdir).forEach(async (file, index, array) => {
+                let filetype = await FileType.fromFile(`${pkgdir}/${file}`)
+                itemsProcessed++
+                if (typeof filetype !== 'undefined' && filetype.mime === "application/gzip") {
                     try {
-                        await testinstallNPM(npmdir, file)
+                        await testinstallPKG(pkgdir, file)
                     } catch (err) {
-                        rej(err)
+                        errDebug(err)
                     }
-                    res(true)
+                    if (itemsProcessed === array.length) {
+                        res(true)
+                    }
                 } else {
-                    const err = `File "${file}" is not an NPM package`
-                    fs.unlinkSync(`${npmdir}/${file}`)
-                    errDebug(err)
-                    rej(err)
+                    genfunc.genPkgArray(file,50,"bad_file_type")
+                    fs.unlinkSync(`${pkgdir}/${file}`)
+                    rej(`File "${file}" is not an NPM package`)
                 }
             })
+            superDebug('End of readdir foreach')
         } else {
-            res(`There are no files in the validate directory: ${npmdir}`)
+            res(`There are no files in the validate directory: ${pkgdir}`)
         }
     })
 }
 
-function testinstallNPM(dir, npm) {
+function testinstallPKG(dir, pkg) {
     return new Promise((res, rej) => {
-        console.log(`Validating Package ${npm}`)
-        superDebug(`Stage testinstallNPM:start loopbacktoken: ${loopbacktoken}`)
+        console.log(`Validating Package ${pkg}`)
+        superDebug(`Stage testinstallPKG:start loopbacktoken: ${loopbacktoken}`)
         try {
-            const stdout = execSync(`npm i --dry-run ${dir}/${npm}`, {stdio: [stderr]}).toString()
+            const stdout = execSync(`npm i --dry-run ${dir}/${pkg}`, {stdio: [stderr]}).toString()
             superDebug(stdout)
-            console.log(`Package ${npm} installed successfully`)
+            console.log(`Package ${pkg} installed successfully`)
             loopbacktoken = true
-            genfunc.deletePackagefile(`${dir}/${npm}`)
-            genfunc.genPkgArray(npm,0,"success")
+            genfunc.deletePackagefile(`${dir}/${pkg}`)
+            genfunc.genPkgArray(pkg,0,"success")
             res(true)
         } catch (err) {
             const stderr = err.stderr
-            if (stderr.includes("Requires") || stderr.includes("nothing provides")) {
-                console.log(`Package ${npm} has missing dependencies...`)
-                genfunc.genPkgArray(npm,1,"missing_deps")
+            if (stderr.includes("is not in the npm registry")) {
+                console.log(`Package ${pkg} has missing dependencies...`)
+                genfunc.genPkgArray(pkg,1,"missing_deps")
                 errDebug(err)
             } else {
-                console.log(`Unable to install package ${npm}, run debug mode to view error`)
-                genfunc.genPkgArray(npm,666,"unknown_err")
+                console.log(`Unable to install package ${pkg}, run debug mode to view error`)
+                genfunc.genPkgArray(pkg,666,"unknown_err")
                 errDebug(err)
             }
             rej(err)
